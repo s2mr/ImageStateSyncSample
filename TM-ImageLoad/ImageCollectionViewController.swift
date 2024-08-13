@@ -19,15 +19,57 @@ final class FirstCell: UICollectionViewCell {
     }
 }
 
-struct ImageCellItem: Hashable {
-    var url: URL
+struct ImageCellItem: Equatable {
+    static func == (lhs: ImageCellItem, rhs: ImageCellItem) -> Bool {
+        lhs.url == rhs.url
+    }
+
+    let url: URL
+    let imageDisplayStorage: ImageDisplayStorage
 }
 
 final class ImageCell: UICollectionViewCell {
     func render(with item: ImageCellItem) {
         contentConfiguration = UIHostingConfiguration(content: {
-            ThumbnailImageView(url: item.url)
+            ThumbnailImageView(
+                viewModel: .init(
+                    url: item.url,
+                    dependency: .default(imageDisplayStorage: item.imageDisplayStorage)
+                )
+            )
         })
+    }
+}
+
+struct ImageCollectionViewData {
+    var imageURLs = DummyImages.imageURLs
+}
+
+final class ImageCollectionViewModel {
+    struct Dependency {
+        var imageDisplayStorage: ImageDisplayStorage
+
+        static func `default`(imageDisplayStorage: ImageDisplayStorage) -> Dependency {
+            Dependency(imageDisplayStorage: imageDisplayStorage)
+        }
+    }
+
+    var imageDisplayStorage: ImageDisplayStorage {
+        dependency.imageDisplayStorage
+    }
+
+    var viewData: ImageCollectionViewData = .init() {
+        didSet {
+            didChange?()
+        }
+    }
+
+    var didChange: (() -> Void)?
+
+    private let dependency: Dependency
+
+    init(dependency: Dependency) {
+        self.dependency = dependency
     }
 }
 
@@ -35,9 +77,29 @@ final class ImageCollectionViewController: UICollectionViewController {
     let imageCellRegistration: UICollectionView.CellRegistration<ImageCell, ImageCellItem>
     let firstCellRegistration: UICollectionView.CellRegistration<FirstCell, FirstCellItem>
 
-    let imageURLs = DummyImages.imageURLs
+    let viewModel: ImageCollectionViewModel
 
-    init() {
+    private let layout = UICollectionViewCompositionalLayout.init(
+        section: .init(
+            group: .horizontal(
+                layoutSize: .init(widthDimension: .estimated(120), heightDimension: .estimated(120)),
+                subitems: [
+                    .init(
+                        layoutSize: .init(widthDimension: .absolute(120), heightDimension: .absolute(120))
+                    ),
+                    .init(
+                        layoutSize: .init(widthDimension: .absolute(120), heightDimension: .absolute(120))
+                    ),
+                    .init(
+                        layoutSize: .init(widthDimension: .absolute(120), heightDimension: .absolute(120))
+                    ),
+                ]
+            )
+        )
+    )
+
+    init(viewModel: ImageCollectionViewModel) {
+        self.viewModel = viewModel
         self.imageCellRegistration = UICollectionView.CellRegistration<ImageCell, ImageCellItem> { cell, indexPath, item in
             cell.render(with: item)
         }
@@ -46,26 +108,15 @@ final class ImageCollectionViewController: UICollectionViewController {
             cell.render(with: item)
         }
 
-        super.init(
-            collectionViewLayout: UICollectionViewCompositionalLayout.init(
-                section: .init(
-                    group: .horizontal(
-                        layoutSize: .init(widthDimension: .estimated(120), heightDimension: .estimated(120)),
-                        subitems: [
-                            .init(
-                                layoutSize: .init(widthDimension: .absolute(120), heightDimension: .absolute(120))
-                            ),
-                            .init(
-                                layoutSize: .init(widthDimension: .absolute(120), heightDimension: .absolute(120))
-                            ),
-                            .init(
-                                layoutSize: .init(widthDimension: .absolute(120), heightDimension: .absolute(120))
-                            ),
-                        ]
-                    )
-                )
-            )
-        )
+        super.init(collectionViewLayout: self.layout)
+    }
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+
+        viewModel.didChange = { [weak self] in
+            self?.collectionView.reloadData()
+        }
     }
 
     required init?(coder: NSCoder) {
@@ -79,26 +130,39 @@ final class ImageCollectionViewController: UICollectionViewController {
     override func collectionView(_ collectionView: UICollectionView, numberOfItemsInSection section: Int) -> Int {
         switch section {
         case 0: 1
-        default: imageURLs.count
+        default: viewModel.viewData.imageURLs.count
         }
     }
 
     override func collectionView(_ collectionView: UICollectionView, cellForItemAt indexPath: IndexPath) -> UICollectionViewCell {
         switch indexPath.section {
         case 0:
-            collectionView.dequeueConfiguredReusableCell(using: firstCellRegistration, for: indexPath, item: FirstCellItem(itemSelected: { [weak self] in
-                let sceneDelegate = self?.view.window?.windowScene?.delegate as! SceneDelegate
-                let rootController = sceneDelegate.window?.rootViewController
-                let controller = UIHostingController(rootView: ImageListScreen())
-                rootController?.present(controller, animated: true)
-
-            }))
+            return collectionView.dequeueConfiguredReusableCell(
+                using: firstCellRegistration,
+                for: indexPath,
+                item: FirstCellItem(itemSelected: { [weak self] in
+                    guard let me = self else { return }
+                    let sceneDelegate = me.view.window?.windowScene?.delegate as! SceneDelegate
+                    let rootController = sceneDelegate.window?.rootViewController
+                    let controller = UIHostingController(rootView: ImageListScreen(viewModel: ImageListViewModel(
+                        dependency: .default(imageDisplayStorage: me.viewModel.imageDisplayStorage)
+                    )))
+                    rootController?.present(controller, animated: true)
+                })
+            )
         default:
-            collectionView.dequeueConfiguredReusableCell(using: imageCellRegistration, for: indexPath, item: ImageCellItem(url: imageURLs[indexPath.row]))
+            return collectionView.dequeueConfiguredReusableCell(
+                using: imageCellRegistration,
+                for: indexPath,
+                item: ImageCellItem(
+                    url: viewModel.viewData.imageURLs[indexPath.row],
+                    imageDisplayStorage: viewModel.imageDisplayStorage
+                )
+            )
         }
     }
 }
 
 #Preview {
-    ImageCollectionViewController()
+    ImageCollectionViewController(viewModel: .init(dependency: .default(imageDisplayStorage: ImageDisplayStorage())))
 }

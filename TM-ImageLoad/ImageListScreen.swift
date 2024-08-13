@@ -18,6 +18,24 @@ struct ImageListViewData {
 }
 
 final class ImageListViewModel: ObservableObject {
+    struct Dependency {
+        var imageDisplayStorage: ImageDisplayStorage
+
+        static func `default`(imageDisplayStorage: ImageDisplayStorage) -> Dependency {
+            Dependency(imageDisplayStorage: imageDisplayStorage)
+        }
+    }
+
+    var imageDisplayStorage: ImageDisplayStorage {
+        dependency.imageDisplayStorage
+    }
+
+    private let dependency: Dependency
+
+    init(dependency: Dependency) {
+        self.dependency = dependency
+    }
+
     @Published var viewData = ImageListViewData()
 }
 
@@ -39,13 +57,31 @@ struct ThumbnailImageViewData {
     var loadState: ImageLoadState
 }
 
-final class ThumbnailImageViewModel: ObservableObject {
-    @Published var viewData: ThumbnailImageViewData
+final class ImageDisplayStorage {
+    var displayStates: [URL: ImageDisplayState] = [:]
 
-    init(url: URL) {
+    func getState(for url: URL) -> ImageDisplayState {
+        displayStates[url] ?? .loaded
+    }
+}
+
+final class ThumbnailImageViewModel: ObservableObject {
+    struct Dependency {
+        var imageDisplayStorage: ImageDisplayStorage
+
+        static func `default`(imageDisplayStorage: ImageDisplayStorage) -> Dependency {
+            Dependency(imageDisplayStorage: imageDisplayStorage)
+        }
+    }
+
+    @Published var viewData: ThumbnailImageViewData
+    private let dependency: Dependency
+
+    init(url: URL, dependency: Dependency) {
         _viewData = .init(
             initialValue: ThumbnailImageViewData(url: url, loadState: .unloaded)
         )
+        self.dependency = dependency
     }
 
     func load() async {
@@ -67,8 +103,8 @@ final class ThumbnailImageViewModel: ObservableObject {
 struct ThumbnailImageView: View {
     @StateObject private var viewModel: ThumbnailImageViewModel
 
-    init(url: URL) {
-        self._viewModel = .init(wrappedValue: ThumbnailImageViewModel(url: url))
+    init(viewModel: ThumbnailImageViewModel) {
+        self._viewModel = .init(wrappedValue: viewModel)
     }
 
     var body: some View {
@@ -87,8 +123,12 @@ struct ThumbnailImageView: View {
 }
 
 struct ImageListScreen: View {
-    @StateObject private var viewModel = ImageListViewModel()
+    @StateObject private var viewModel: ImageListViewModel
     @State private var isPresented = false
+
+    init(viewModel: ImageListViewModel) {
+        _viewModel = .init(wrappedValue: viewModel)
+    }
 
     var body: some View {
         ScrollView {
@@ -102,18 +142,18 @@ struct ImageListScreen: View {
                 }
 
                 ForEach(viewModel.viewData.imageURLs, id: \.absoluteString) { url in
-                    ThumbnailImageView(url: url)
+                    ThumbnailImageView(viewModel: .init(url: url, dependency: .default(imageDisplayStorage: viewModel.imageDisplayStorage)))
                         .frame(width: 120, height: 120)
                         .border(Color.black)
                 }
             })
         }
         .sheet(isPresented: $isPresented) {
-            ImageListScreen()
+            ImageListScreen(viewModel: ImageListViewModel(dependency: .default(imageDisplayStorage: viewModel.imageDisplayStorage)))
         }
     }
 }
 
 #Preview {
-    ImageListScreen()
+    ImageListScreen(viewModel: .init(dependency: .default(imageDisplayStorage: ImageDisplayStorage())))
 }
