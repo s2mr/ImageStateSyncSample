@@ -44,8 +44,12 @@ struct ImageListScreen: View {
                     isPresented = true
                 }
 
-                ForEach(viewModel.viewData.imageURLs, id: \.absoluteString) { url in
-                    ThumbnailImageView(viewModel: .init(url: url, dependency: .default(imageDisplayStorage: viewModel.imageDisplayStorage)))
+                ForEach(Array(viewModel.viewData.imageURLs.enumerated()), id: \.offset) { index, url in
+                    ThumbnailImageView(viewModel: .init(
+                        index: index,
+                        url: url,
+                        dependency: .default(imageDisplayStorage: viewModel.imageDisplayStorage)
+                    ))
                         .frame(width: 120, height: 120)
                         .border(Color.black)
                 }

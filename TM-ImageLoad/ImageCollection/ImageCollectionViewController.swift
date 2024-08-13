@@ -80,11 +80,13 @@ final class ImageCollectionViewController: UICollectionViewController {
                     rootController?.present(controller, animated: true)
                 })
             )
+
         default:
             return collectionView.dequeueConfiguredReusableCell(
                 using: imageCellRegistration,
                 for: indexPath,
                 item: ImageCellItem(
+                    index: indexPath.row,
                     url: viewModel.viewData.imageURLs[indexPath.row],
                     imageDisplayStorage: viewModel.imageDisplayStorage
                 )

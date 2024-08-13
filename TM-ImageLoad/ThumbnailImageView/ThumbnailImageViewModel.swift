@@ -19,9 +19,14 @@ final class ThumbnailImageViewModel: ObservableObject {
     private let dependency: Dependency
     private var cancellable: AnyCancellable?
 
-    init(url: URL, dependency: Dependency) {
+    init(
+        index: Int,
+        url: URL,
+        dependency: Dependency
+    ) {
         _viewData = .init(
             initialValue: ThumbnailImageViewData(
+                index: index,
                 url: url,
                 loadState: .unloaded
             )

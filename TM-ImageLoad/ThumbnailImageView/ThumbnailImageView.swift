@@ -1,8 +1,9 @@
 import SwiftUI
 import Foundation
 
+@MainActor
 struct ThumbnailImageView: View {
-    @StateObject private var viewModel: ThumbnailImageViewModel
+    @ObservedObject var viewModel: ThumbnailImageViewModel
 
     init(viewModel: ThumbnailImageViewModel) {
         self._viewModel = .init(wrappedValue: viewModel)
@@ -10,6 +11,11 @@ struct ThumbnailImageView: View {
 
     var body: some View {
         content
+            .frame(minWidth: 120, minHeight: 120)
+            .border(.black)
+            .overlay(alignment: .bottomLeading) {
+                Text("\(viewModel.viewData.index)")
+            }
             .task {
                 await viewModel.onAppear()
             }
