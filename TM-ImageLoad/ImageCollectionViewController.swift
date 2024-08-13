@@ -70,6 +70,10 @@ final class ImageCollectionViewModel {
 
     init(dependency: Dependency) {
         self.dependency = dependency
+
+//        dependency.imageDisplayStorage.didChange = { [weak self] url, state in
+//            self?.didChange?()
+//        }
     }
 }
 
