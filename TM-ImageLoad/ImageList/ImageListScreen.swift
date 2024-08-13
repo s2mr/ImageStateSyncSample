@@ -2,7 +2,7 @@ import SwiftUI
 
 enum DummyImages {
     static let imageURLs: [URL] = {
-        (0..<20).map { number in
+        (0..<50).map { number in
             URL(string: "https://placehold.jp/150x150.png?text=\(number)")!
         }
     }()
