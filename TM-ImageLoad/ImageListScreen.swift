@@ -49,6 +49,7 @@ enum ImageDisplayState {
 
 enum ImageLoadState {
     case loaded(UIImage)
+    case mosaic(UIImage)
     case unloaded
 }
 
@@ -58,13 +59,24 @@ struct ThumbnailImageViewData {
 }
 
 final class ImageDisplayStorage {
-    var displayStates: [URL: ImageDisplayState] = [:]
+    private var displayStates: [URL: ImageDisplayState] = [:] {
+        didSet {
+            didChange?()
+        }
+    }
+
+    var didChange: (() -> Void)?
+
+    func set(for url: URL, state: ImageDisplayState) {
+        displayStates[url] = state
+    }
 
     func getState(for url: URL) -> ImageDisplayState {
         displayStates[url] ?? .loaded
     }
 }
 
+@MainActor
 final class ThumbnailImageViewModel: ObservableObject {
     struct Dependency {
         var imageDisplayStorage: ImageDisplayStorage
@@ -82,15 +94,24 @@ final class ThumbnailImageViewModel: ObservableObject {
             initialValue: ThumbnailImageViewData(url: url, loadState: .unloaded)
         )
         self.dependency = dependency
+
+        dependency.imageDisplayStorage.didChange = { [weak self] in
+            Task { await self?.load() }
+        }
     }
 
     func load() async {
         do {
             let (data, _) = try await URLSession.shared.data(for: URLRequest(url: viewData.url))
-            viewData.loadState = .loaded(UIImage(data: data) ?? .init())
+            viewData.loadState = .mosaic(UIImage(data: data) ?? .init())
         } catch {
             print(error)
         }
+    }
+
+    func removeMosaic() {
+        guard case .mosaic(let image) = viewData.loadState else { return }
+        viewData.loadState = .loaded(image)
     }
 }
 
@@ -108,11 +129,28 @@ struct ThumbnailImageView: View {
     }
 
     var body: some View {
+        content
+    }
+
+    @ViewBuilder
+    private var content: some View {
         switch viewModel.viewData.loadState {
-        case .loaded(let uIImage):
-            Image(uiImage: uIImage)
+        case .loaded(let uiImage):
+            Image(uiImage: uiImage)
                 .resizable()
                 .aspectRatio(contentMode: .fit)
+
+        case .mosaic(let uiImage):
+            Image(uiImage: uiImage)
+                .resizable()
+                .aspectRatio(contentMode: .fit)
+                .overlay(alignment: .bottomTrailing) {
+                    Text("モザイク")
+                        .font(.system(size: 14).bold())
+                }
+                .onTapGesture {
+                    viewModel.removeMosaic()
+                }
 
         case .unloaded:
             Button("未読込") {
